@@ -23,7 +23,6 @@ FRACTION_WITH_SHIPS = 0.75 #fraction of data with ships after undersampling
 BATCH_SIZE = 16
 EPOCH = 30
 
-#base_dir = 'airbus_ship_detection_unet'
 train_image_dir = 'airbus_ship_detection_unet/train_v2'
 test_image_dir = "airbus_ship_detection_unet/test_v2"
 # 1. Data preparation and Undersample Empty Images
