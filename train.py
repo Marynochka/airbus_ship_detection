@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 import warnings
 warnings.filterwarnings('ignore')
 import random
@@ -15,7 +12,7 @@ from keras.callbacks import EarlyStopping, ModelCheckpoint, ReduceLROnPlateau, C
 from sklearn.model_selection import train_test_split
 from datetime import datetime
 from metrics import dice_loss, dice_coef
-
+import matplotlib.pyplot as plt
 
 END_IMAGE_SIZE = (256, 256, 3)
 NUMBER = 10000 # size of sample for training
@@ -142,6 +139,7 @@ def fill_ds(ids, df, image_folder, img_size=(256, 256, 3)):
     y = np.zeros((len(ids), img_size[0], img_size[1], 1), dtype=np.float32)
 
     # Loop over ImageIds
+    print("Data sampling")
     for n, img_id in tqdm(enumerate(ids), total=len(ids)):
         # Load and resize image
         img = np.asarray(Image.open(os.path.join(image_folder, img_id))
@@ -251,7 +249,7 @@ def create_unet(filters=8,
     return model
 
 #5. Defining training
-def train(model, X_train, Y_train, validation_size=0.2, epochs=30, batch_size=16, model_name='unet_segmentation'):
+def train(model, X_train, X_val, Y_train, Y_val, epochs=30, batch_size=16, model_name='unet_segmentation'):
     """
     Trains a given model on the provided training data.
 
@@ -259,7 +257,7 @@ def train(model, X_train, Y_train, validation_size=0.2, epochs=30, batch_size=16
         model: The model to be trained.
         X_train: The input training data.
         Y_train: The target training data.
-        validation_size (float, optional): The fraction of training data to be used for validation, 0.2 by default.
+        X_val, Y_val : the validation data
         epochs (int, optional): The number of training epochs, 30 by default.
         batch_size (int, optional): The batch size for training, 16 by default.
         model_name (str, optional): The name of the model, 'unet_segmentation' by default.
@@ -267,10 +265,7 @@ def train(model, X_train, Y_train, validation_size=0.2, epochs=30, batch_size=16
     Returns:
         keras.callbacks.History: The training history.
     """
-    # Split the training data into training and validation sets
-    X_train, X_val, Y_train, Y_val = train_test_split(X_train, Y_train, test_size=validation_size, random_state=42)
-
-    # Compile the model with optimizer, loss function, and metrics
+        # Compile the model with optimizer, loss function, and metrics
     model.compile(optimizer='adam', loss=[dice_loss], metrics=[dice_coef])
 
     # Get the current time for saving model checkpoints
@@ -278,7 +273,7 @@ def train(model, X_train, Y_train, validation_size=0.2, epochs=30, batch_size=16
 
     # Define callbacks for training
     callbacks = [
-        CSVLogger("model_history_log.csv", append=True),
+        CSVLogger(f'models/{model_name}{current_time}.csv', append=True),
         ReduceLROnPlateau(monitor='val_dice_coef', factor=0.5, patience=3, verbose=1, mode='max', epsilon=0.0001, cooldown=2, min_lr=1e-6),
         ModelCheckpoint(f'models/{model_name}{current_time}.h5', verbose=1, save_best_only=True),
         EarlyStopping(monitor='val_dice_coef', patience=5, mode='max')
@@ -289,7 +284,61 @@ def train(model, X_train, Y_train, validation_size=0.2, epochs=30, batch_size=16
 
 # Create a UNet model
 model = create_unet(filters=8)
+#Train-Validation Split
 
+X_train, X_val, Y_train, Y_val = train_test_split(X_data, y_data, test_size=0.2, random_state=42)
 # Train the model using training data and specified parameters
-history = train(model, X_data, y_data, epochs=EPOCH, batch_size=BATCH_SIZE)
+history = train(model, X_train, X_val, Y_train, Y_val, epochs=EPOCH, batch_size=BATCH_SIZE)
 
+#Results 
+loss = history.history['loss']
+val_loss = history.history['val_loss']
+dice_coeff = history.history['dice_coef']
+val_dice_coef = history.history['val_dice_coef']
+fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(8, 12))
+
+ax1.plot(range(1, len(dice_coeff) + 1), dice_coeff, label='Dice Score')
+ax1.plot(range(1, len(val_dice_coef) + 1), val_dice_coef, label='Validation Dice Score')
+ax1.set_xlabel('Epochs')
+ax1.set_ylabel('Dice Score')
+ax1.set_title('Dice Score through epochs')
+ax1.legend()
+
+ax2.plot(range(1, len(loss) + 1), loss, label='Training Loss')
+ax2.plot(range(1, len(val_loss) + 1), val_loss, label='Validation Loss')
+ax2.set_xlabel('Epochs')
+ax2.set_ylabel('Loss')
+ax2.set_title('Loss through epochs')
+ax2.legend()
+
+plt.tight_layout()
+plt.show()
+#Prediction for validation Data 
+X_val_pred = model.predict(X_val)
+
+loss, dice_score = model.evaluate(X_val, Y_val)
+print('Dice loss:', round(loss, 4))
+print(f'Dice score: {round(dice_score, 2)*100}%')
+
+current_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+indexes = np.random.choice([_ for _ in range(len(X_val_pred))], size=12, replace=False)
+counter = 1 
+fig, axes = plt.subplots(12, 3, figsize=(12, 48))
+
+for i, ind in enumerate(indexes):
+    axes[i, 0].imshow(X_val[ind])
+    axes[i, 0].set_title("Image")
+
+    axes[i, 1].imshow(Y_val[ind], cmap='Blues_r')
+    axes[i, 1].set_title("Actual segmentation mask")
+
+    dice_score = dice_coef(Y_val[ind], X_val_pred[ind])
+    axes[i, 2].imshow(X_val_pred[ind], cmap='Blues_r')
+    axes[i, 2].set_title(f"Predicted mask \nDice Score: {dice_score:.4f}")
+
+plt.tight_layout()
+
+# Save the figure as one single image
+plt.savefig(f'models/predictions{current_time}.png')
+
+plt.show()
