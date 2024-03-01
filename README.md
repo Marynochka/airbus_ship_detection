@@ -16,28 +16,36 @@ After downloading and unzipping the dataset, the directory structure should look
          └── ...
      └── train_ship_segmentations_v2.csv
  ├──models
-    ├──h5
-    └──csv
+    ├──*.h5
+    └──*.csv
 ├── train.py
 ├── test.py
 ├── metrics.py
 ├── encoding.py
-├── EDA.ipynb
-├── metrics.py
+├── ...
 └── README.md
 ```
 
 # Usage
 
-The `train.py` and `test.py` scripts are independent and can be run separately. 
+The `train.py` and `test.py` scripts are independent and can be run separately.
 
-- **Training:**
-  To train the model, execute the `train.py` script. The trained model parameters and training history are be stored in the `models` directory.
+### Training:
 
-- **Testing:**
-  To test the trained model, execute the `test.py` script. Make sure to adjust the script to load the trained model from the appropriate directory.
+To train the model, execute the `train.py` script. The trained model parameters and training history are stored in the `models` directory.
 
-Ensure that all necessary dependencies are installed before running the scripts.
+During the training process, several files are generated in the `models` directory:
+- **Model File:** `unet_segmentation{date-and-time-of-training}.h5` contains information about the trained model.
+- **Training History:** `unet_segmentation{date-and-time-of-training}.csv` stores the training history data.
+- **Prediction Comparison:** `prediction{date-and-time-of-training}.png` provides a comparison of a random sample from the validation dataset, including the original image, actual segmentation mask, and predicted segmentation mask.
+
+### Testing:
+
+To test the trained model, execute the test.py script. Ensure that you adjust the script to load the trained model from the appropriate directory.
+
+The parameters for testing the trained model are loaded from the `models/unet_segmentation2024-02-29_23-46-48.h5` file (which was already prepared during training, you can substitute with your own trained model file). 
+
+The images used for testing are sourced from the `airbus_ship_detection_unet/test_v2` directory. If you want to test the model using your own images, modify the `test_imgs` variable in `test.py` and provide your list of image filenames. Also, change the `test_image_dir` variable to specify the directory containing your test images.
 
 # Run
 
@@ -52,9 +60,9 @@ python3 test.py
 ```
 Additionally, the following files are included in this repository:
 
-EDA.ipynb: Contains exploratory data analysis.
-encoding.py: Contains functions for RLE encoding, used for visualization in EDA.ipynb.
-metrics.py: Provides the metrics used for model evaluation.
+`EDA.ipynb`: Contains exploratory data analysis.
+`encoding.py`: Contains functions for RLE encoding, used for visualization in EDA.ipynb.
+`metrics.py`: Provides the metrics used for model evaluation.
 These files provide additional functionality and insights related to the project.
 
 # Solution description
@@ -64,7 +72,7 @@ The initial step involves preprocessing the dataset. Due to the large size of th
 
 - **Image and Mask Resizing:** The original images and masks, which were of size (768, 768), were resized to (256, 256) to expedite the training process.
 
-- **U-Net Model:** The U-Net model, provided by [TODO], was implemented using TensorFlow for semantic segmentation tasks.
+- **U-Net Model:** The U-Net model, provided by [2], was implemented using TensorFlow for semantic segmentation tasks.
 
 - **Model Performance Evaluation:** Dice coefficients and Dice Loss were utilized for evaluating the performance of the model. The Dice coefficient measures the similarity between two samples: the actual segmentation mask and the predicted segmentation mask.
 
@@ -73,6 +81,23 @@ The initial step involves preprocessing the dataset. Due to the large size of th
 
 8000 images were used for training, while 2000 images were reserved for validation. The model was trained for 35 epochs. The resulting Dice coefficient value for the validation dataset achieved by the model during validation is 0.74.
 
-The dependency of the Dice coefficient for each epoch during training is provided below:
+The dependency of the Dice coefficient and Dice Loss for each epoch during training is provided below:
 ![Dice_coef](./Dice_coef.png)
 ![Dice_loss](./Dice_loss.png)
+
+## Segmentation Mask Comparison
+The comparison between predicted segmentation masks and actual masks for samples from the validation set is illustrated in the figure below:
+![Results](./predictions.png)
+The visualization demonstrates the model's performance in detecting images with and without ships. While the model can successfully identify images without ships, it faces challenges in accurately detecting ships of smaller sizes. This issue may stem from resizing the entire images during training.
+
+A potential solution to improve the model's performance is to consider cropping the original images, ensuring that the ship remains in the center of the cropped file. This approach allows the model to focus on relevant areas while excluding unnecessary background information.
+
+Additionally, it's noteworthy that the segmentation masks generated by the model exhibit irregular boundaries, unlike the rectangular shapes in the original masks. This discrepancy may impact the model's ability to precisely delineate ship boundaries.
+
+It's essential to mention that for better prediction results, it is crucial to train the model on a larger dataset, include augmentation techniques, and train for a higher number of epochs.
+
+# References
+1. https://github.com/Andrii-Radyhin/Airbus-Ship-Detection-Challenge/
+2. https://github.com/muratalkhadam/ship-segmentation
+3. https://github.com/Spartificial/yt-acad-projs
+4. https://medium.com/artificialis/detecting-ships-in-satellite-imagery-five-years-later-28df2e83f987
