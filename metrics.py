@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-
 import tensorflow as tf
 
 def dice_coef(y_true, y_pred, smooth=1e-6):
